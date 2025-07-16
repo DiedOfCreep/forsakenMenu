@@ -309,7 +309,7 @@ task.spawn(function()
 
 				path:ComputeAsync(hrp.Position, target.Position)
 
-				if path.Status == Enum.PathStatus.Complete then
+				if path.Status == Enum.PathStatus.Success then
 					for _, waypoint in ipairs(path:GetWaypoints()) do
 						if not aiEnabled then break end
 						humanoid:MoveTo(waypoint.Position)

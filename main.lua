@@ -328,7 +328,7 @@ task.spawn(function()
 		local path = pathfinding:CreatePath()
 		path:ComputeAsync(hrp.Position, target.Position)
 
-		if path.Status == Enum.PathStatus.Complete then
+		if path.Status == Enum.PathStatus.Success then
 			for _, waypoint in ipairs(path:GetWaypoints()) do
 				if not botEnabled then break end
 				hum:MoveTo(waypoint.Position)

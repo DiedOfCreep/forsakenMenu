@@ -124,8 +124,8 @@ slider.Font = Enum.Font.SourceSans
 slider.TextSize = 20
 
 slider.MouseButton1Click:Connect(function()
-	speed += 5
-	if speed > 46 then speed = 1 end
+	speed += 1
+	if speed > 45 then speed = 1 end
 	slider.Text = "Скорость: " .. tostring(speed)
 end)
 

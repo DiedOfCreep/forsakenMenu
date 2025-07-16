@@ -237,3 +237,12 @@ uis.InputBegan:Connect(function(input, gp)
 			hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 25
 			task.wait(2)
 			dashCooldown
+			end
+		end
+	end)
+
+uis.InputBegan:Connect(function(input,gp)
+if input.KeyCode == Enum.KeyCode.Insert and not gp then
+			frame.Visible = not frame.Visible
+	end
+	end)

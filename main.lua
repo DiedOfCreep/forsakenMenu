@@ -112,25 +112,6 @@ buttonTPGen.MouseButton1Click:Connect(function()
 	if nearest then hrp.CFrame = nearest.CFrame + Vector3.new(0,3,0) end
 end)
 
---Телепорт на 250
-local buttonTPUp = Instance.new("TextButton", frame)
-buttonTPUp.Size = UDim2.new(1, -20, 0, 40)
-buttonTPUp.Position = UDim2.new(0, 10, 0, 300) -- смести, если занято
-buttonTPUp.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-buttonTPUp.BorderSizePixel = 0
-buttonTPUp.TextColor3 = Color3.fromRGB(255, 255, 255)
-buttonTPUp.Text = "TP вверх на 250"
-buttonTPUp.Font = Enum.Font.SourceSans
-buttonTPUp.TextSize = 20
-
-buttonTPUp.MouseButton1Click:Connect(function()
-	local char = lp.Character or lp.CharacterAdded:Wait()
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if hrp then
-		hrp.Position += Vector3.new(0, 250, 0)
-	end
-end)
-
 -- TP спам к выжившим
 local tpSpamming = false
 local buttonTPSpam = Instance.new("TextButton", frame)
@@ -248,6 +229,29 @@ dashButton.MouseButton1Click:Connect(function()
 	local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
 	if hrp then
 		hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 25
+	end
+end)
+
+-- Телепорт на 250 вверх
+local tpUpButton = Instance.new("TextButton", frame)
+tpUpButton.Size = UDim2.new(1, -20, 0, 40)
+tpUpButton.Position = UDim2.new(0, 10, 0, 400)
+tpUpButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+tpUpButton.BorderSizePixel = 0
+tpUpButton.TextColor3 = Color3.fromRGB(255,255,255)
+tpUpButton.Text = "TP вверх на 250"
+tpUpButton.Font = Enum.Font.SourceSans
+tpUpButton.TextSize = 20
+
+tpUpButton.MouseButton1Click:Connect(function()
+	local hrp = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+	if hrp then
+		task.spawn(function()
+			hrp.Anchored = false
+			task.wait(0.25)
+			hrp.Anchored = true
+			hrp.Position += Vector3.new(0, 250, 0)
+		end)
 	end
 end)
 

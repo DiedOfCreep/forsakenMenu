@@ -257,6 +257,81 @@ tpUpButton.MouseButton1Click:Connect(function()
 	end
 end)
 
+local aiEnabled = false
+
+local botButton = Instance.new("TextButton", frame)
+botButton.Size = UDim2.new(1, -20, 0, 40)
+botButton.Position = UDim2.new(0, 10, 0, 450)
+botButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+botButton.BorderSizePixel = 0
+botButton.TextColor3 = Color3.fromRGB(255,255,255)
+botButton.Text = "AFK Bot: OFF"
+botButton.Font = Enum.Font.SourceSans
+botButton.TextSize = 20
+
+botButton.MouseButton1Click:Connect(function()
+	aiEnabled = not aiEnabled
+	botButton.Text = aiEnabled and "AFK Bot: ON" or "AFK Bot: OFF"
+end)
+
+local PathfindingService = game:GetService("PathfindingService")
+local TweenService = game:GetService("TweenService")
+
+task.spawn(function()
+	while task.wait(1) do
+		if aiEnabled then
+			local char = lp.Character
+			local hrp = char and char:FindFirstChild("HumanoidRootPart")
+			local humanoid = char and char:FindFirstChild("Humanoid")
+
+			if not (char and hrp and humanoid) then continue end
+
+			-- Ищем живую цель
+			local target = nil
+			for _, player in ipairs(workspace.Players.Survivors:GetChildren()) do
+				if player ~= char then
+					local h = player:FindFirstChild("Humanoid")
+					local p = player:FindFirstChild("HumanoidRootPart")
+					if h and p and h.Health > 0 then
+						target = p
+						break
+					end
+				end
+			end
+
+			-- Строим путь
+			if target then
+				local path = PathfindingService:CreatePath({
+					AgentRadius = 2,
+					AgentHeight = 5,
+					AgentCanJump = true,
+				})
+
+				path:ComputeAsync(hrp.Position, target.Position)
+
+				if path.Status == Enum.PathStatus.Complete then
+					for _, waypoint in ipairs(path:GetWaypoints()) do
+						if not aiEnabled then break end
+						humanoid:MoveTo(waypoint.Position)
+						humanoid.MoveToFinished:Wait()
+
+						-- Проверка дистанции
+						local dist = (hrp.Position - target.Position).Magnitude
+						if dist > 30 then
+							local shift = uis:IsKeyDown(Enum.KeyCode.LeftShift)
+							if not shift then
+								local input = Instance.new("BindableEvent")
+								uis.InputBegan:Fire({KeyCode=Enum.KeyCode.LeftShift})
+								input:Destroy()
+							end
+						end
+					end
+				end
+			end
+		end
+	end
+end)
+
 -- Кнопка Insert — показать/скрыть
 uis.InputBegan:Connect(function(input, gp)
 	if input.KeyCode == Enum.KeyCode.Insert and not gp then

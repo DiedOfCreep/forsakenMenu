@@ -258,83 +258,85 @@ tpUpButton.MouseButton1Click:Connect(function()
 end)
 
 --Аи бот
-local pathfindingService = game:GetService("PathfindingService")
+local pathfinding = game:GetService("PathfindingService")
+local runService = game:GetService("RunService")
+
 local botEnabled = false
+local buttonBot = Instance.new("TextButton", frame)
+buttonBot.Size = UDim2.new(1, -20, 0, 40)
+buttonBot.Position = UDim2.new(0, 10, 0, 445) -- ниже последней кнопки
+buttonBot.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+buttonBot.BorderSizePixel = 0
+buttonBot.TextColor3 = Color3.fromRGB(255, 255, 255)
+buttonBot.Text = "AFK-Бот: OFF"
+buttonBot.Font = Enum.Font.SourceSans
+buttonBot.TextSize = 20
 
--- Кнопка включения AI
-local botButton = Instance.new("TextButton", frame)
-botButton.Size = UDim2.new(1, -20, 0, 40)
-botButton.Position = UDim2.new(0, 10, 0, 440)
-botButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-botButton.BorderSizePixel = 0
-botButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-botButton.Text = "Bot: OFF"
-botButton.Font = Enum.Font.SourceSans
-botButton.TextSize = 20
-
-botButton.MouseButton1Click:Connect(function()
+buttonBot.MouseButton1Click:Connect(function()
 	botEnabled = not botEnabled
-	botButton.Text = botEnabled and "Bot: ON" or "Bot: OFF"
+	buttonBot.Text = botEnabled and "AFK-Бот: ON" or "AFK-Бот: OFF"
 end)
 
 task.spawn(function()
-	while task.wait(2) do
-		if botEnabled then
-			local char = lp.Character
-			local hrp = char and char:FindFirstChild("HumanoidRootPart")
-			local hum = char and char:FindFirstChildOfClass("Humanoid")
-			if not (char and hrp and hum) then continue end
+	while true do
+		task.wait(1)
+		if not botEnabled then continue end
 
-			-- Поиск ближайшего выжившего
-			local nearest, nearestDist = nil, math.huge
-			for _, m in ipairs(workspace.Players.Survivors:GetChildren()) do
-				local h = m:FindFirstChild("Humanoid")
-				local t = m:FindFirstChild("HumanoidRootPart")
-				if h and h.Health > 0 and t and m ~= char then
-					local d = (hrp.Position - t.Position).Magnitude
-					if d < nearestDist then
-						nearest = t
-						nearestDist = d
-					end
+		local char = lp.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		local hum = char and char:FindFirstChild("Humanoid")
+		if not hrp or not hum or hum.Health <= 0 then continue end
+
+		-- ищем выжившего
+		local target = nil
+		local dist = math.huge
+		for _, m in ipairs(workspace.Players.Survivors:GetChildren()) do
+			local h = m:FindFirstChild("Humanoid")
+			local t = m:FindFirstChild("HumanoidRootPart")
+			if h and h.Health > 0 and t and m ~= lp.Character then
+				local d = (hrp.Position - t.Position).Magnitude
+				if d < dist then
+					dist = d
+					target = t
 				end
 			end
+		end
 
-			if nearest then
-				-- Включить SpeedHack, если далеко
-				if nearestDist > 50 then
-					speedEnabled = true
-					speed = 45
-					speedToggle.Text = "SpeedHack: ON"
-					speedSlider.Text = "Скорость: 45"
-				else
-					speedEnabled = false
-					speedToggle.Text = "SpeedHack: OFF"
-				end
+		if not target then continue end
 
-				-- TP на 250 вверх, если рядом убийца
-				for _, killer in ipairs(workspace.Players.Killers:GetChildren()) do
-					local kRoot = killer:FindFirstChild("HumanoidRootPart")
-					if kRoot and (kRoot.Position - hrp.Position).Magnitude < 20 then
-						task.spawn(function()
-							hrp.Anchored = false
-							task.wait(0.15)
-							hrp.Anchored = true
-							hrp.Position += Vector3.new(0, 250, 0)
-							task.wait(0.15)
-							hrp.Anchored = false
-						end)
-					end
-				end
+		-- проверка на убийцу поблизости
+		for _, killer in ipairs(workspace.Players.Killers:GetChildren()) do
+			local khrp = killer:FindFirstChild("HumanoidRootPart")
+			if khrp and (khrp.Position - hrp.Position).Magnitude < 15 then
+				task.spawn(function()
+					hrp.Anchored = false
+					task.wait(0.1)
+					hrp.Anchored = true
+					hrp.Position += Vector3.new(0, 250, 0)
+					task.wait(0.2)
+					hrp.Anchored = false
+				end)
+				break
+			end
+		end
 
-				-- Движение через Pathfinding
-				local path = pathfindingService:CreatePath()
-				path:ComputeAsync(hrp.Position, nearest.Position)
-				if path.Status == Enum.PathStatus.Success then
-					for _, wp in ipairs(path:GetWaypoints()) do
-						hum:MoveTo(wp.Position)
-						hum.MoveToFinished:Wait()
-						if not botEnabled then break end
-					end
+		-- если далеко — включить спидхак
+		speedEnabled = dist > 100
+		speed = 35
+
+		-- двигаемся через Pathfinding
+		local path = pathfinding:CreatePath()
+		path:ComputeAsync(hrp.Position, target.Position)
+
+		if path.Status == Enum.PathStatus.Complete then
+			for _, waypoint in ipairs(path:GetWaypoints()) do
+				if not botEnabled then break end
+				hum:MoveTo(waypoint.Position)
+				hum.MoveToFinished:Wait()
+
+				-- проверка цели
+				if (hrp.Position - target.Position).Magnitude < 6 then
+					break -- цель достигнута
 				end
 			end
 		end

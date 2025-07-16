@@ -125,7 +125,7 @@ slider.TextSize = 20
 
 slider.MouseButton1Click:Connect(function()
 	speed += 5
-	if speed > 40 then speed = 1 end
+	if speed > 46 then speed = 1 end
 	slider.Text = "Скорость: " .. tostring(speed)
 end)
 

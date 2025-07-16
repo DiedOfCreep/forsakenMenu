@@ -24,20 +24,7 @@ title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.TextScaled = true
 title.Font = Enum.Font.SourceSansBold
 
--- === Кнопка: ВХ ===
-local button = Instance.new("TextButton", frame)
-button.Size = UDim2.new(1, -20, 0, 40)
-button.Position = UDim2.new(0, 10, 0, 60)
-button.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-button.BorderSizePixel = 0
-button.TextColor3 = Color3.fromRGB(255, 255, 255)
-button.Text = "ESP ON"
-button.Font = Enum.Font.SourceSans
-button.TextSize = 20
-
-local espEnabled = false
-
--- === ESP функция ===
+-- === createBoxESP ===
 local function createBoxESP(part, color, name)
 	local adorn = Instance.new("BoxHandleAdornment")
 	adorn.Adornee = part
@@ -50,7 +37,9 @@ local function createBoxESP(part, color, name)
 	adorn.Parent = part
 end
 
-local function enableESP()
+-- === ESP ===
+local espEnabled = false
+local function toggleESP()
 	local survivors = workspace:WaitForChild("Players"):WaitForChild("Survivors")
 	for _, model in pairs(survivors:GetChildren()) do
 		local hrp = model:FindFirstChild("HumanoidRootPart")
@@ -67,26 +56,34 @@ local function enableESP()
 		end
 	end
 
-	local genFolder = workspace:FindFirstChild("Map") and workspace.Map:FindFirstChild("InGame") and workspace.Map.InGame:FindFirstChild("Map")
-	if genFolder then
-		for _, obj in pairs(genFolder:GetChildren()) do
-			if obj.Name == "Generator" and obj:IsA("Model") then
-				local mainPart = obj:FindFirstChildWhichIsA("BasePart")
-				if mainPart and not mainPart:FindFirstChild("ESP_Generator") then
-					createBoxESP(mainPart, Color3.fromRGB(0, 170, 255), "Generator")
-				end
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("Model") and obj.Name == "Generator" then
+			local mainPart = obj:FindFirstChildWhichIsA("BasePart")
+			if mainPart and not mainPart:FindFirstChild("ESP_Generator") then
+				createBoxESP(mainPart, Color3.fromRGB(0, 170, 255), "Generator")
 			end
 		end
 	end
 end
 
-button.MouseButton1Click:Connect(function()
+-- === Кнопка ESP ===
+local buttonESP = Instance.new("TextButton", frame)
+buttonESP.Size = UDim2.new(1, -20, 0, 40)
+buttonESP.Position = UDim2.new(0, 10, 0, 60)
+buttonESP.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+buttonESP.BorderSizePixel = 0
+buttonESP.TextColor3 = Color3.fromRGB(255, 255, 255)
+buttonESP.Text = "ESP ON"
+buttonESP.Font = Enum.Font.SourceSans
+buttonESP.TextSize = 20
+
+buttonESP.MouseButton1Click:Connect(function()
 	espEnabled = not espEnabled
 	if espEnabled then
-		button.Text = "ESP ON"
-		enableESP()
+		buttonESP.Text = "ESP ON"
+		toggleESP()
 	else
-		button.Text = "ESP OFF"
+		buttonESP.Text = "ESP OFF"
 		for _, v in ipairs(workspace:GetDescendants()) do
 			if v:IsA("BoxHandleAdornment") and v.Name:match("^ESP_") then
 				v:Destroy()
@@ -95,7 +92,32 @@ button.MouseButton1Click:Connect(function()
 	end
 end)
 
--- === Toggle меню на Insert ===
+-- === Кнопка TP к генератору ===
+local buttonTP = Instance.new("TextButton", frame)
+buttonTP.Size = UDim2.new(1, -20, 0, 40)
+buttonTP.Position = UDim2.new(0, 10, 0, 110)
+buttonTP.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+buttonTP.BorderSizePixel = 0
+buttonTP.TextColor3 = Color3.fromRGB(255, 255, 255)
+buttonTP.Text = "TP к генератору"
+buttonTP.Font = Enum.Font.SourceSans
+buttonTP.TextSize = 20
+
+buttonTP.MouseButton1Click:Connect(function()
+	local char = lp.Character or lp.CharacterAdded:Wait()
+	local hrp = char:WaitForChild("HumanoidRootPart")
+	for _, obj in ipairs(workspace:GetDescendants()) do
+		if obj:IsA("Model") and obj.Name == "Generator" then
+			local part = obj:FindFirstChildWhichIsA("BasePart")
+			if part then
+				hrp.CFrame = part.CFrame + Vector3.new(0, 3, 0)
+				break
+			end
+		end
+	end
+end)
+
+-- === Insert toggle GUI ===
 uis.InputBegan:Connect(function(input, gp)
 	if input.KeyCode == Enum.KeyCode.Insert and not gp then
 		frame.Visible = not frame.Visible

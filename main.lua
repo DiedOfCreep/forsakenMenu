@@ -243,7 +243,7 @@ local vim = game:GetService("VirtualInputManager")
 local modeRandom = false
 local buttonMode = Instance.new("TextButton", frame)
 buttonMode.Size = UDim2.new(1, -20, 0, 40)
-buttonMode.Position = UDim2.new(0, 10, 0, 200)
+buttonMode.Position = UDim2.new(0, 10, 0, 300) -- сдвинул вниз
 buttonMode.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 buttonMode.BorderSizePixel = 0
 buttonMode.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -260,7 +260,7 @@ end)
 local botEnabled = false
 local buttonBot = Instance.new("TextButton", frame)
 buttonBot.Size = UDim2.new(1, -20, 0, 40)
-buttonBot.Position = UDim2.new(0, 10, 0, 250)
+buttonBot.Position = UDim2.new(0, 10, 0, 350) -- ниже режима цели
 buttonBot.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 buttonBot.BorderSizePixel = 0
 buttonBot.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -297,14 +297,11 @@ local function chooseTarget(hrp)
 	end
 end
 
--- Менеджер выбора цели (не чаще 8 сек)
+-- Менеджер цели
 local lastTargetChange = 0
 local target = nil
 local function updateTarget(hrp)
 	if tick() - lastTargetChange > 8 or not target then
-		target = chooseTarget(hrp)
-		lastTargetChange = tick()
-	elseif math.random() < 0.2 then
 		target = chooseTarget(hrp)
 		lastTargetChange = tick()
 	end
@@ -329,8 +326,8 @@ task.spawn(function()
 
 		local dist = (hrp.Position - target.Position).Magnitude
 
-		-- Иногда спидхак даже рядом
-		if dist > 100 or math.random() < 0.1 then
+		-- Иногда включает спидхак даже рядом
+		if dist > 100 or math.random() < 0.05 then
 			speedEnabled, speed = true, 35
 			pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game) end)
 		else
@@ -341,16 +338,15 @@ task.spawn(function()
 		-- Pathfinding
 		local path = pathfinding:CreatePath()
 		path:ComputeAsync(hrp.Position, target.Position)
-		if path.Status == Enum.PathStatus.Success then
+		if path.Status == Enum.PathStatus.Success and #path:GetWaypoints() > 1 then
 			for _, wp in ipairs(path:GetWaypoints()) do
 				if not botEnabled then break end
+				hum:MoveTo(wp.Position)
 
-				-- иногда идём по кривой
-				if math.random() < 0.1 then
-					local curve = CFrame.Angles(0, math.rad(math.random(-25,25)), 0).LookVector
-					hum:MoveTo(hrp.Position + curve * 15)
-				else
-					hum:MoveTo(wp.Position)
+				-- иногда кривое движение
+				if math.random() < 0.05 then
+					local curve = CFrame.Angles(0, math.rad(math.random(-20,20)), 0).LookVector
+					hum:MoveTo(hrp.Position + curve * 10)
 				end
 
 				local reached = hum.MoveToFinished:Wait(2)
@@ -363,6 +359,9 @@ task.spawn(function()
 
 				if (hrp.Position - target.Position).Magnitude < 6 then break end
 			end
+		else
+			-- если путь пустой → рывок вперёд
+			hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 10
 		end
 
 		-- Проверка застревания
@@ -414,6 +413,7 @@ task.spawn(function()
 		end
 	end
 end)
+
 
 -- Кнопка Insert — показать/скрыть
 uis.InputBegan:Connect(function(input, gp)

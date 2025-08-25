@@ -195,24 +195,24 @@ task.spawn(function()
 end)
 
 -- Удаление детекторов
-local removeButton = Instance.new("TextButton", frame)
-removeButton.Size = UDim2.new(1, -20, 0, 40)
-removeButton.Position = UDim2.new(0, 10, 0, 300)
-removeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-removeButton.BorderSizePixel = 0
-removeButton.TextColor3 = Color3.fromRGB(255,255,255)
-removeButton.Text = "Удалить детекторы"
-removeButton.Font = Enum.Font.SourceSans
-removeButton.TextSize = 20
+-- local removeButton = Instance.new("TextButton", frame)
+-- removeButton.Size = UDim2.new(1, -20, 0, 40)
+-- removeButton.Position = UDim2.new(0, 10, 0, 300)
+-- removeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+-- removeButton.BorderSizePixel = 0
+-- removeButton.TextColor3 = Color3.fromRGB(255,255,255)
+-- removeButton.Text = "Удалить детекторы"
+-- removeButton.Font = Enum.Font.SourceSans
+-- removeButton.TextSize = 20
 
-removeButton.MouseButton1Click:Connect(function()
-	local char = lp.Character or lp.CharacterAdded:Wait()
-	for _, obj in ipairs(char:GetChildren()) do
-		if obj.Name == "VisibilityDetector" or obj.Name == "NoclipDetector" then
-			obj:Destroy()
-		end
-	end
-end)
+-- removeButton.MouseButton1Click:Connect(function()
+-- 	local char = lp.Character or lp.CharacterAdded:Wait()
+-- 	for _, obj in ipairs(char:GetChildren()) do
+-- 		if obj.Name == "VisibilityDetector" or obj.Name == "NoclipDetector" then
+-- 			obj:Destroy()
+-- 		end
+-- 	end
+-- end)
 
 -- Рывок вперёд
 local dashButton = Instance.new("TextButton", frame)

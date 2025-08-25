@@ -306,18 +306,31 @@ local function chooseTarget(hrp)
 	end
 end
 
--- менеджер цели
-local lastTargetChange = 0
-local target = nil
-local function updateTarget(hrp)
-	if tick() - lastTargetChange > 8 or not target then
-		target = chooseTarget(hrp)
-		lastTargetChange = tick()
+-- состояние игры
+local function getState(hrp)
+	-- живые выжившие
+	local survivors = {}
+	for _, m in ipairs(workspace.Players.Survivors:GetChildren()) do
+		local h = m:FindFirstChild("Humanoid")
+		local t = m:FindFirstChild("HumanoidRootPart")
+		if h and h.Health > 0 and m ~= lp.Character and t then
+			table.insert(survivors, t)
+		end
 	end
-	return target
+	if #survivors > 0 then return "survivors", survivors end
+
+	-- киллеры
+	local killers = {}
+	for _, k in ipairs(workspace.Players.Killers:GetChildren()) do
+		local t = k:FindFirstChild("HumanoidRootPart")
+		if t then table.insert(killers, t) end
+	end
+	if #killers > 0 then return "killers", killers end
+
+	return "none", {}
 end
 
--- хранение сейв позиции
+-- сейв позиция
 local lastSafePos = nil
 task.spawn(function()
 	while true do
@@ -334,17 +347,15 @@ task.spawn(function()
 					break
 				end
 			end
-			if not stuck then
-				lastSafePos = hrp.Position
-			end
+			if not stuck then lastSafePos = hrp.Position end
 		end
 	end
 end)
 
--- флаг для прикола (чтобы не мешал паник-тп)
+-- флаг для прикола
 local trollingKiller = false
 
--- === Основной цикл движения ===
+-- === Основной цикл ===
 task.spawn(function()
 	while true do
 		task.wait(1)
@@ -355,12 +366,29 @@ task.spawn(function()
 		local hum = char and char:FindFirstChild("Humanoid")
 		if not hrp or not hum or hum.Health <= 0 then continue end
 
-		local target = updateTarget(hrp)
-		if not target then continue end
+		local state, list = getState(hrp)
+		local target = nil
 
+		if state == "survivors" then
+			target = chooseTarget(hrp)
+		elseif state == "killers" then
+			target = list[math.random(1, #list)]
+		else
+			-- никого нет → ресет
+			pcall(function()
+				vim:SendKeyEvent(true, Enum.KeyCode.Escape, false, game)
+				task.wait(0.2)
+				vim:SendKeyEvent(true, Enum.KeyCode.R, false, game)
+				task.wait(0.2)
+				vim:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+			end)
+			continue
+		end
+
+		if not target then continue end
 		local dist = (hrp.Position - target.Position).Magnitude
 
-		-- Спидхак
+		-- спидхак
 		if dist > 100 then
 			speedEnabled, speed = true, 35
 			pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game) end)
@@ -378,18 +406,15 @@ task.spawn(function()
 				hum:MoveTo(wp.Position)
 				local reached = hum.MoveToFinished:Wait(2)
 
-				-- анти-застревание
 				if not reached then
 					-- рывок
 					hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 8
-					-- проверка на застревание
 					local touching = hrp:GetTouchingParts()
 					for _, part in ipairs(touching) do
 						if part.CanCollide and not part:IsDescendantOf(char) then
 							if lastSafePos then
 								hrp.CFrame = CFrame.new(lastSafePos + Vector3.new(0,3,0))
 							end
-							-- перестроение пути
 							path:ComputeAsync(hrp.Position, target.Position)
 							break
 						end
@@ -402,7 +427,7 @@ task.spawn(function()
 	end
 end)
 
--- === Паник-тп при киллере ===
+-- паник-тп при киллере
 task.spawn(function()
 	while true do
 		task.wait(0.5)
@@ -428,7 +453,7 @@ task.spawn(function()
 	end
 end)
 
--- === Прикол с киллером ===
+-- прикол с киллером
 task.spawn(function()
 	while true do
 		task.wait(50)
@@ -468,7 +493,7 @@ task.spawn(function()
 	end
 end)
 
--- === Проверка здоровья (E если HP < 65) ===
+-- проверка здоровья
 task.spawn(function()
 	while true do
 		task.wait(30)
@@ -484,6 +509,7 @@ task.spawn(function()
 		end
 	end
 end)
+
 
 
 -- Кнопка Insert — показать/скрыть

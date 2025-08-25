@@ -257,17 +257,15 @@ tpUpButton.MouseButton1Click:Connect(function()
 	end
 end)
 
---Аи бот
+-- Bot
 local pathfinding = game:GetService("PathfindingService")
-local runService = game:GetService("RunService")
+local vim = game:GetService("VirtualInputManager")
 
--- Переключатель режима цели
 local modeRandom = false
 local buttonMode = Instance.new("TextButton", frame)
 buttonMode.Size = UDim2.new(1, -20, 0, 40)
-buttonMode.Position = UDim2.new(0, 10, 0, 300) -- на место старой кнопки
+buttonMode.Position = UDim2.new(0, 10, 0, 200)
 buttonMode.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-buttonMode.BorderSizePixel = 0
 buttonMode.TextColor3 = Color3.fromRGB(255, 255, 255)
 buttonMode.Text = "Цель: Ближайшая"
 buttonMode.Font = Enum.Font.SourceSans
@@ -278,13 +276,11 @@ buttonMode.MouseButton1Click:Connect(function()
 	buttonMode.Text = modeRandom and "Цель: Случайная" or "Цель: Ближайшая"
 end)
 
--- Переключатель бота
 local botEnabled = false
 local buttonBot = Instance.new("TextButton", frame)
 buttonBot.Size = UDim2.new(1, -20, 0, 40)
-buttonBot.Position = UDim2.new(0, 10, 0, 350)
+buttonBot.Position = UDim2.new(0, 10, 0, 250)
 buttonBot.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-buttonBot.BorderSizePixel = 0
 buttonBot.TextColor3 = Color3.fromRGB(255, 255, 255)
 buttonBot.Text = "AFK-Бот: OFF"
 buttonBot.Font = Enum.Font.SourceSans
@@ -296,8 +292,6 @@ buttonBot.MouseButton1Click:Connect(function()
 end)
 
 -- Вспомогательные функции
-local vim = game:GetService("VirtualInputManager")
-
 local function chooseTarget(hrp)
 	local candidates = {}
 	for _, m in ipairs(workspace.Players.Survivors:GetChildren()) do
@@ -308,126 +302,77 @@ local function chooseTarget(hrp)
 		end
 	end
 	if #candidates == 0 then return nil end
-
 	if modeRandom then
 		return candidates[math.random(1, #candidates)]
 	else
 		local nearest, dist = nil, math.huge
 		for _, t in ipairs(candidates) do
 			local d = (hrp.Position - t.Position).Magnitude
-			if d < dist then
-				dist = d
-				nearest = t
-			end
+			if d < dist then dist, nearest = d, t end
 		end
 		return nearest
 	end
 end
 
--- Основной цикл бота (движение к целям + динамика)
+-- Основной цикл
 task.spawn(function()
 	local lastPos = nil
-	while true do
-		task.wait(1)
+	while task.wait(1) do
 		if not botEnabled then continue end
-
 		local char = lp.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		local hum = char and char:FindFirstChild("Humanoid")
 		if not hrp or not hum or hum.Health <= 0 then continue end
 
-		-- Определяем цель (и иногда меняем даже на ходу)
 		local target = chooseTarget(hrp)
 		if not target then continue end
-		if math.random() < 0.3 then
-			target = chooseTarget(hrp) -- смена цели на ходу
-		end
+		if math.random() < 0.2 then target = chooseTarget(hrp) end
 
 		local dist = (hrp.Position - target.Position).Magnitude
-
-		-- Иногда спидхак даже рядом
-		if dist > 100 or math.random() < 0.15 then
-			speedEnabled = true
-			speed = 35
+		if dist > 100 or math.random() < 0.1 then
+			speedEnabled, speed = true, 35
 			pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game) end)
 		else
 			speedEnabled = false
 			pcall(function() vim:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game) end)
 		end
 
-		-- Pathfinding
 		local path = pathfinding:CreatePath()
 		path:ComputeAsync(hrp.Position, target.Position)
-
 		if path.Status == Enum.PathStatus.Success then
-			for _, waypoint in ipairs(path:GetWaypoints()) do
+			for _, wp in ipairs(path:GetWaypoints()) do
 				if not botEnabled then break end
-
-				-- иногда двигаемся по кривой
-				if math.random() < 0.2 then
-					local curve = (waypoint.Position - hrp.Position).Unit
-					curve = CFrame.Angles(0, math.rad(math.random(-40,40)), 0).LookVector
-					hum:MoveTo(hrp.Position + curve * 20)
+				if math.random() < 0.1 then
+					local curve = CFrame.Angles(0, math.rad(math.random(-30,30)), 0).LookVector
+					hum:MoveTo(hrp.Position + curve * 15)
 				else
-					hum:MoveTo(waypoint.Position)
+					hum:MoveTo(wp.Position)
 				end
-
 				local reached = hum.MoveToFinished:Wait(2)
-
-				-- анти-застревание
 				if not reached then
 					hum.Jump = true
-					hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 10
+					hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 8
 				end
-
-				if (hrp.Position - target.Position).Magnitude < 6 then
-					break
-				end
+				if (hrp.Position - target.Position).Magnitude < 6 then break end
 			end
 		end
 
-		-- проверка застревания
 		if lastPos and (hrp.Position - lastPos).Magnitude < 3 then
 			hum.Jump = true
-			hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 10
+			hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 8
 		end
 		lastPos = hrp.Position
 	end
 end)
 
--- Побег от киллера
+-- Прикол с киллером
 task.spawn(function()
-	while true do
-		task.wait(0.5)
-		if not botEnabled then continue end
-		local char = lp.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		if not hrp then continue end
-
-		for _, killer in ipairs(workspace.Players.Killers:GetChildren()) do
-			local khrp = killer:FindFirstChild("HumanoidRootPart")
-			if khrp and (khrp.Position - hrp.Position).Magnitude < 25 then
-				hrp.CFrame = hrp.CFrame + Vector3.new(
-					math.random(-50,50),
-					250,
-					math.random(-50,50)
-				)
-				break
-			end
-		end
-	end
-end)
-
--- Прикол с киллером (раз в 50 сек)
-task.spawn(function()
-	while true do
-		task.wait(50)
+	while task.wait(50) do
 		if not botEnabled then continue end
 		local char = lp.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		local hum = char and char:FindFirstChild("Humanoid")
 		if not hrp or not hum then continue end
-
 		local killers = workspace.Players.Killers:GetChildren()
 		if #killers > 0 then
 			local k = killers[math.random(1,#killers)]
@@ -435,7 +380,6 @@ task.spawn(function()
 			if khrp then
 				hum:MoveTo(khrp.Position)
 				hum.MoveToFinished:Wait(3)
-				-- жмём Q
 				pcall(function()
 					vim:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
 					task.wait(0.1)
@@ -445,8 +389,6 @@ task.spawn(function()
 		end
 	end
 end)
-
-
 
 -- Кнопка Insert — показать/скрыть
 uis.InputBegan:Connect(function(input, gp)

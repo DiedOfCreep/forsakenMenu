@@ -243,7 +243,7 @@ local vim = game:GetService("VirtualInputManager")
 local modeRandom = false
 local buttonMode = Instance.new("TextButton", frame)
 buttonMode.Size = UDim2.new(1, -20, 0, 40)
-buttonMode.Position = UDim2.new(0, 10, 0, 300) -- сдвинул вниз
+buttonMode.Position = UDim2.new(0, 10, 0, 300)
 buttonMode.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 buttonMode.BorderSizePixel = 0
 buttonMode.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -260,7 +260,7 @@ end)
 local botEnabled = false
 local buttonBot = Instance.new("TextButton", frame)
 buttonBot.Size = UDim2.new(1, -20, 0, 40)
-buttonBot.Position = UDim2.new(0, 10, 0, 350) -- ниже режима цели
+buttonBot.Position = UDim2.new(0, 10, 0, 350)
 buttonBot.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
 buttonBot.BorderSizePixel = 0
 buttonBot.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -308,6 +308,30 @@ local function updateTarget(hrp)
 	return target
 end
 
+-- Система lastSafePos
+local lastSafePos = nil
+task.spawn(function()
+	while true do
+		task.wait(1)
+		if not botEnabled then continue end
+		local char = lp.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if hrp then
+			local touching = hrp:GetTouchingParts()
+			local stuck = false
+			for _, part in ipairs(touching) do
+				if part.CanCollide and not part:IsDescendantOf(char) then
+					stuck = true
+					break
+				end
+			end
+			if not stuck then
+				lastSafePos = hrp.Position
+			end
+		end
+	end
+end)
+
 -- Основной цикл бота
 task.spawn(function()
 	local lastPos = nil
@@ -343,32 +367,36 @@ task.spawn(function()
 				if not botEnabled then break end
 				hum:MoveTo(wp.Position)
 
-				-- иногда кривое движение
-				if math.random() < 0.05 then
-					local curve = CFrame.Angles(0, math.rad(math.random(-20,20)), 0).LookVector
-					hum:MoveTo(hrp.Position + curve * 10)
-				end
-
 				local reached = hum.MoveToFinished:Wait(2)
 
 				-- анти-застревание
 				if not reached then
-					hum.Jump = true
-					hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 8
+					-- если застрял → пересчёт пути
+					path:ComputeAsync(hrp.Position, target.Position)
+					-- если в стене → откат на lastSafePos
+					local touching = hrp:GetTouchingParts()
+					for _, part in ipairs(touching) do
+						if part.CanCollide and not part:IsDescendantOf(char) then
+							if lastSafePos then
+								hrp.CFrame = CFrame.new(lastSafePos + Vector3.new(0,3,0))
+							end
+							break
+						end
+					end
 				end
 
 				if (hrp.Position - target.Position).Magnitude < 6 then break end
 			end
 		else
-			-- если путь пустой → рывок вперёд
-			hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 10
+			-- путь не построился → пересчитать ещё раз
+			task.wait(0.5)
 		end
 
-		-- Проверка застревания
+		-- Проверка застревания (если стоит на месте)
 		if tick() - lastPosCheck > 2 then
 			if lastPos and (hrp.Position - lastPos).Magnitude < 2 then
-				hum.Jump = true
-				hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 10
+				-- вместо телепорта → пересчёт пути
+				path:ComputeAsync(hrp.Position, target.Position)
 			end
 			lastPos = hrp.Position
 			lastPosCheck = tick()
@@ -376,7 +404,7 @@ task.spawn(function()
 	end
 end)
 
--- Прикол с киллером (раз в 50 сек)
+-- Прикол с киллером (раз в 50 сек, только если подошёл близко)
 task.spawn(function()
 	while true do
 		task.wait(50)
@@ -413,6 +441,7 @@ task.spawn(function()
 		end
 	end
 end)
+
 
 
 -- Кнопка Insert — показать/скрыть

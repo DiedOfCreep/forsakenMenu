@@ -193,27 +193,6 @@ task.spawn(function()
 		end
 	end
 end)
-
--- Удаление детекторов
--- local removeButton = Instance.new("TextButton", frame)
--- removeButton.Size = UDim2.new(1, -20, 0, 40)
--- removeButton.Position = UDim2.new(0, 10, 0, 300)
--- removeButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
--- removeButton.BorderSizePixel = 0
--- removeButton.TextColor3 = Color3.fromRGB(255,255,255)
--- removeButton.Text = "Удалить детекторы"
--- removeButton.Font = Enum.Font.SourceSans
--- removeButton.TextSize = 20
-
--- removeButton.MouseButton1Click:Connect(function()
--- 	local char = lp.Character or lp.CharacterAdded:Wait()
--- 	for _, obj in ipairs(char:GetChildren()) do
--- 		if obj.Name == "VisibilityDetector" or obj.Name == "NoclipDetector" then
--- 			obj:Destroy()
--- 		end
--- 	end
--- end)
-
 -- Рывок вперёд
 local dashButton = Instance.new("TextButton", frame)
 dashButton.Size = UDim2.new(1, -20, 0, 40)
@@ -257,15 +236,16 @@ tpUpButton.MouseButton1Click:Connect(function()
 	end
 end)
 
--- Bot
 local pathfinding = game:GetService("PathfindingService")
 local vim = game:GetService("VirtualInputManager")
 
+-- Переключатель режима цели
 local modeRandom = false
 local buttonMode = Instance.new("TextButton", frame)
 buttonMode.Size = UDim2.new(1, -20, 0, 40)
 buttonMode.Position = UDim2.new(0, 10, 0, 200)
 buttonMode.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+buttonMode.BorderSizePixel = 0
 buttonMode.TextColor3 = Color3.fromRGB(255, 255, 255)
 buttonMode.Text = "Цель: Ближайшая"
 buttonMode.Font = Enum.Font.SourceSans
@@ -276,11 +256,13 @@ buttonMode.MouseButton1Click:Connect(function()
 	buttonMode.Text = modeRandom and "Цель: Случайная" or "Цель: Ближайшая"
 end)
 
+-- Переключатель бота
 local botEnabled = false
 local buttonBot = Instance.new("TextButton", frame)
 buttonBot.Size = UDim2.new(1, -20, 0, 40)
 buttonBot.Position = UDim2.new(0, 10, 0, 250)
 buttonBot.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+buttonBot.BorderSizePixel = 0
 buttonBot.TextColor3 = Color3.fromRGB(255, 255, 255)
 buttonBot.Text = "AFK-Бот: OFF"
 buttonBot.Font = Enum.Font.SourceSans
@@ -302,6 +284,7 @@ local function chooseTarget(hrp)
 		end
 	end
 	if #candidates == 0 then return nil end
+
 	if modeRandom then
 		return candidates[math.random(1, #candidates)]
 	else
@@ -314,21 +297,39 @@ local function chooseTarget(hrp)
 	end
 end
 
--- Основной цикл
+-- Менеджер выбора цели (не чаще 8 сек)
+local lastTargetChange = 0
+local target = nil
+local function updateTarget(hrp)
+	if tick() - lastTargetChange > 8 or not target then
+		target = chooseTarget(hrp)
+		lastTargetChange = tick()
+	elseif math.random() < 0.2 then
+		target = chooseTarget(hrp)
+		lastTargetChange = tick()
+	end
+	return target
+end
+
+-- Основной цикл бота
 task.spawn(function()
 	local lastPos = nil
-	while task.wait(1) do
+	local lastPosCheck = tick()
+	while true do
+		task.wait(1)
 		if not botEnabled then continue end
+
 		local char = lp.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		local hum = char and char:FindFirstChild("Humanoid")
 		if not hrp or not hum or hum.Health <= 0 then continue end
 
-		local target = chooseTarget(hrp)
+		local target = updateTarget(hrp)
 		if not target then continue end
-		if math.random() < 0.2 then target = chooseTarget(hrp) end
 
 		local dist = (hrp.Position - target.Position).Magnitude
+
+		-- Иногда спидхак даже рядом
 		if dist > 100 or math.random() < 0.1 then
 			speedEnabled, speed = true, 35
 			pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game) end)
@@ -337,54 +338,78 @@ task.spawn(function()
 			pcall(function() vim:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game) end)
 		end
 
+		-- Pathfinding
 		local path = pathfinding:CreatePath()
 		path:ComputeAsync(hrp.Position, target.Position)
 		if path.Status == Enum.PathStatus.Success then
 			for _, wp in ipairs(path:GetWaypoints()) do
 				if not botEnabled then break end
+
+				-- иногда идём по кривой
 				if math.random() < 0.1 then
-					local curve = CFrame.Angles(0, math.rad(math.random(-30,30)), 0).LookVector
+					local curve = CFrame.Angles(0, math.rad(math.random(-25,25)), 0).LookVector
 					hum:MoveTo(hrp.Position + curve * 15)
 				else
 					hum:MoveTo(wp.Position)
 				end
+
 				local reached = hum.MoveToFinished:Wait(2)
+
+				-- анти-застревание
 				if not reached then
 					hum.Jump = true
 					hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 8
 				end
+
 				if (hrp.Position - target.Position).Magnitude < 6 then break end
 			end
 		end
 
-		if lastPos and (hrp.Position - lastPos).Magnitude < 3 then
-			hum.Jump = true
-			hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 8
+		-- Проверка застревания
+		if tick() - lastPosCheck > 2 then
+			if lastPos and (hrp.Position - lastPos).Magnitude < 2 then
+				hum.Jump = true
+				hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 10
+			end
+			lastPos = hrp.Position
+			lastPosCheck = tick()
 		end
-		lastPos = hrp.Position
 	end
 end)
 
--- Прикол с киллером
+-- Прикол с киллером (раз в 50 сек)
 task.spawn(function()
-	while task.wait(50) do
+	while true do
+		task.wait(50)
 		if not botEnabled then continue end
 		local char = lp.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		local hum = char and char:FindFirstChild("Humanoid")
 		if not hrp or not hum then continue end
+
 		local killers = workspace.Players.Killers:GetChildren()
 		if #killers > 0 then
 			local k = killers[math.random(1,#killers)]
 			local khrp = k:FindFirstChild("HumanoidRootPart")
 			if khrp then
-				hum:MoveTo(khrp.Position)
-				hum.MoveToFinished:Wait(3)
-				pcall(function()
-					vim:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
-					task.wait(0.1)
-					vim:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
-				end)
+				local path = pathfinding:CreatePath()
+				path:ComputeAsync(hrp.Position, khrp.Position)
+				if path.Status == Enum.PathStatus.Success then
+					for _, wp in ipairs(path:GetWaypoints()) do
+						if not botEnabled then break end
+						hum:MoveTo(wp.Position)
+						hum.MoveToFinished:Wait(2)
+
+						if (hrp.Position - khrp.Position).Magnitude <= 7 then
+							pcall(function()
+								vim:SendKeyEvent(true, Enum.KeyCode.Q, false, game)
+								task.wait(0.1)
+								vim:SendKeyEvent(false, Enum.KeyCode.Q, false, game)
+							end)
+							break
+						end
+					end
+				end
 			end
 		end
 	end

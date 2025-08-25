@@ -277,6 +277,22 @@ buttonBot.MouseButton1Click:Connect(function()
 	buttonBot.Text = botEnabled and "AFK-Бот: ON" or "AFK-Бот: OFF"
 end)
 
+local vim = game:GetService("VirtualInputManager")
+
+-- функция выбора случайного выжившего
+local function getRandomSurvivor()
+    local survivors = {}
+    for _, m in ipairs(workspace.Players.Survivors:GetChildren()) do
+        local h = m:FindFirstChild("Humanoid")
+        local t = m:FindFirstChild("HumanoidRootPart")
+        if h and h.Health > 0 and t and m ~= lp.Character then
+            table.insert(survivors, t)
+        end
+    end
+    if #survivors == 0 then return nil end
+    return survivors[math.random(1, #survivors)]
+end
+
 task.spawn(function()
 	while true do
 		task.wait(1)
@@ -287,22 +303,11 @@ task.spawn(function()
 		local hum = char and char:FindFirstChild("Humanoid")
 		if not hrp or not hum or hum.Health <= 0 then continue end
 
-		-- ищем выжившего
-		local target = nil
-		local dist = math.huge
-		for _, m in ipairs(workspace.Players.Survivors:GetChildren()) do
-			local h = m:FindFirstChild("Humanoid")
-			local t = m:FindFirstChild("HumanoidRootPart")
-			if h and h.Health > 0 and t and m ~= lp.Character then
-				local d = (hrp.Position - t.Position).Magnitude
-				if d < dist then
-					dist = d
-					target = t
-				end
-			end
-		end
-
+		-- выбираем случайную цель
+		local target = getRandomSurvivor()
 		if not target then continue end
+
+		local dist = (hrp.Position - target.Position).Magnitude
 
 		-- проверка на убийцу поблизости
 		for _, killer in ipairs(workspace.Players.Killers:GetChildren()) do
@@ -320,9 +325,15 @@ task.spawn(function()
 			end
 		end
 
-		-- если далеко — включить спидхак
-		speedEnabled = dist > 100
-		speed = 35
+		-- если далеко — включаем спидхак и жмём шифт
+		if dist > 100 then
+			speedEnabled = true
+			speed = 35
+			vim:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
+		else
+			speedEnabled = false
+			vim:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
+		end
 
 		-- двигаемся через Pathfinding
 		local path = pathfinding:CreatePath()
@@ -332,16 +343,17 @@ task.spawn(function()
 			for _, waypoint in ipairs(path:GetWaypoints()) do
 				if not botEnabled then break end
 				hum:MoveTo(waypoint.Position)
-				hum.MoveToFinished:Wait()
+				hum.MoveToFinished:Wait(2)
 
-				-- проверка цели
+				-- проверка расстояния до цели
 				if (hrp.Position - target.Position).Magnitude < 6 then
-					break -- цель достигнута
+					break
 				end
 			end
 		end
 	end
 end)
+
 
 -- Кнопка Insert — показать/скрыть
 uis.InputBegan:Connect(function(input, gp)

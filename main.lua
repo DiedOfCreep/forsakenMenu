@@ -297,7 +297,7 @@ local function chooseTarget(hrp)
 	end
 end
 
--- Менеджер цели
+-- менеджер цели
 local lastTargetChange = 0
 local target = nil
 local function updateTarget(hrp)
@@ -308,7 +308,7 @@ local function updateTarget(hrp)
 	return target
 end
 
--- Система lastSafePos
+-- хранение сейв позиции
 local lastSafePos = nil
 task.spawn(function()
 	while true do
@@ -332,10 +332,8 @@ task.spawn(function()
 	end
 end)
 
--- Основной цикл бота
+-- основной цикл
 task.spawn(function()
-	local lastPos = nil
-	local lastPosCheck = tick()
 	while true do
 		task.wait(1)
 		if not botEnabled then continue end
@@ -350,8 +348,8 @@ task.spawn(function()
 
 		local dist = (hrp.Position - target.Position).Magnitude
 
-		-- Иногда включает спидхак даже рядом
-		if dist > 100 or math.random() < 0.05 then
+		-- Спидхак
+		if dist > 100 then
 			speedEnabled, speed = true, 35
 			pcall(function() vim:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game) end)
 		else
@@ -366,20 +364,23 @@ task.spawn(function()
 			for _, wp in ipairs(path:GetWaypoints()) do
 				if not botEnabled then break end
 				hum:MoveTo(wp.Position)
-
 				local reached = hum.MoveToFinished:Wait(2)
 
 				-- анти-застревание
 				if not reached then
-					-- если застрял → пересчёт пути
-					path:ComputeAsync(hrp.Position, target.Position)
-					-- если в стене → откат на lastSafePos
+					-- пробуем рывок вперёд
+					hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 8
+
+					-- проверка на застревание
 					local touching = hrp:GetTouchingParts()
 					for _, part in ipairs(touching) do
 						if part.CanCollide and not part:IsDescendantOf(char) then
 							if lastSafePos then
+								-- откат назад в безопасную позицию
 								hrp.CFrame = CFrame.new(lastSafePos + Vector3.new(0,3,0))
 							end
+							-- перестраиваем путь
+							path:ComputeAsync(hrp.Position, target.Position)
 							break
 						end
 					end
@@ -387,24 +388,37 @@ task.spawn(function()
 
 				if (hrp.Position - target.Position).Magnitude < 6 then break end
 			end
-		else
-			-- путь не построился → пересчитать ещё раз
-			task.wait(0.5)
-		end
-
-		-- Проверка застревания (если стоит на месте)
-		if tick() - lastPosCheck > 2 then
-			if lastPos and (hrp.Position - lastPos).Magnitude < 2 then
-				-- вместо телепорта → пересчёт пути
-				path:ComputeAsync(hrp.Position, target.Position)
-			end
-			lastPos = hrp.Position
-			lastPosCheck = tick()
 		end
 	end
 end)
 
--- Прикол с киллером (раз в 50 сек, только если подошёл близко)
+-- паник тп при киллере
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		if not botEnabled then continue end
+		local char = lp.Character
+		local hrp = char and char:FindFirstChild("HumanoidRootPart")
+		if not hrp then continue end
+
+		for _, killer in ipairs(workspace.Players.Killers:GetChildren()) do
+			local khrp = killer:FindFirstChild("HumanoidRootPart")
+			if khrp and (khrp.Position - hrp.Position).Magnitude < 25 then
+				task.spawn(function()
+					hrp.Anchored = false
+					task.wait(0.1)
+					hrp.Anchored = true
+					hrp.Position += Vector3.new(0, 250, 0)
+					task.wait(0.2)
+					hrp.Anchored = false
+				end)
+				break
+			end
+		end
+	end
+end)
+
+-- прикол с киллером
 task.spawn(function()
 	while true do
 		task.wait(50)
@@ -441,7 +455,6 @@ task.spawn(function()
 		end
 	end
 end)
-
 
 
 -- Кнопка Insert — показать/скрыть

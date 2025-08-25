@@ -273,25 +273,34 @@ buttonBot.MouseButton1Click:Connect(function()
 	buttonBot.Text = botEnabled and "AFK-Бот: ON" or "AFK-Бот: OFF"
 end)
 
--- Вспомогательные функции
+-- === Вспомогательные функции ===
+
+-- выбор цели
 local function chooseTarget(hrp)
-	local candidates = {}
-	for _, m in ipairs(workspace.Players.Survivors:GetChildren()) do
-		local h = m:FindFirstChild("Humanoid")
-		local t = m:FindFirstChild("HumanoidRootPart")
-		if h and h.Health > 0 and t and m ~= lp.Character then
-			table.insert(candidates, t)
-		end
-	end
-	if #candidates == 0 then return nil end
+	local survivors = workspace.Players.Survivors:GetChildren()
+	if #survivors == 0 then return nil end
 
 	if modeRandom then
-		return candidates[math.random(1, #candidates)]
+		-- случайная цель
+		for i = 1, 10 do
+			local m = survivors[math.random(1, #survivors)]
+			local h = m:FindFirstChild("Humanoid")
+			local t = m:FindFirstChild("HumanoidRootPart")
+			if h and h.Health > 0 and t and m ~= lp.Character then
+				return t
+			end
+		end
+		return nil
 	else
+		-- ближайшая цель
 		local nearest, dist = nil, math.huge
-		for _, t in ipairs(candidates) do
-			local d = (hrp.Position - t.Position).Magnitude
-			if d < dist then dist, nearest = d, t end
+		for _, m in ipairs(survivors) do
+			local h = m:FindFirstChild("Humanoid")
+			local t = m:FindFirstChild("HumanoidRootPart")
+			if h and h.Health > 0 and t and m ~= lp.Character then
+				local d = (hrp.Position - t.Position).Magnitude
+				if d < dist then dist, nearest = d, t end
+			end
 		end
 		return nearest
 	end
@@ -332,7 +341,10 @@ task.spawn(function()
 	end
 end)
 
--- основной цикл
+-- флаг для прикола (чтобы не мешал паник-тп)
+local trollingKiller = false
+
+-- === Основной цикл движения ===
 task.spawn(function()
 	while true do
 		task.wait(1)
@@ -368,18 +380,16 @@ task.spawn(function()
 
 				-- анти-застревание
 				if not reached then
-					-- пробуем рывок вперёд
+					-- рывок
 					hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 8
-
 					-- проверка на застревание
 					local touching = hrp:GetTouchingParts()
 					for _, part in ipairs(touching) do
 						if part.CanCollide and not part:IsDescendantOf(char) then
 							if lastSafePos then
-								-- откат назад в безопасную позицию
 								hrp.CFrame = CFrame.new(lastSafePos + Vector3.new(0,3,0))
 							end
-							-- перестраиваем путь
+							-- перестроение пути
 							path:ComputeAsync(hrp.Position, target.Position)
 							break
 						end
@@ -392,11 +402,11 @@ task.spawn(function()
 	end
 end)
 
--- паник тп при киллере
+-- === Паник-тп при киллере ===
 task.spawn(function()
 	while true do
 		task.wait(0.5)
-		if not botEnabled then continue end
+		if not botEnabled or trollingKiller then continue end
 		local char = lp.Character
 		local hrp = char and char:FindFirstChild("HumanoidRootPart")
 		if not hrp then continue end
@@ -418,7 +428,7 @@ task.spawn(function()
 	end
 end)
 
--- прикол с киллером
+-- === Прикол с киллером ===
 task.spawn(function()
 	while true do
 		task.wait(50)
@@ -433,6 +443,7 @@ task.spawn(function()
 			local k = killers[math.random(1,#killers)]
 			local khrp = k:FindFirstChild("HumanoidRootPart")
 			if khrp then
+				trollingKiller = true
 				local path = pathfinding:CreatePath()
 				path:ComputeAsync(hrp.Position, khrp.Position)
 				if path.Status == Enum.PathStatus.Success then
@@ -451,7 +462,25 @@ task.spawn(function()
 						end
 					end
 				end
+				trollingKiller = false
 			end
+		end
+	end
+end)
+
+-- === Проверка здоровья (E если HP < 65) ===
+task.spawn(function()
+	while true do
+		task.wait(30)
+		if not botEnabled then continue end
+		local char = lp.Character
+		local hum = char and char:FindFirstChild("Humanoid")
+		if hum and hum.Health > 0 and hum.Health < 65 then
+			pcall(function()
+				vim:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+				task.wait(0.1)
+				vim:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+			end)
 		end
 	end
 end)

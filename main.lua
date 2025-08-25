@@ -277,81 +277,127 @@ buttonBot.MouseButton1Click:Connect(function()
 	buttonBot.Text = botEnabled and "AFK-Бот: ON" or "AFK-Бот: OFF"
 end)
 
-local vim = game:GetService("VirtualInputManager")
+-- Убираем кнопку удаления детекторов (removeButton) полностью
 
--- функция выбора случайного выжившего
-local function getRandomSurvivor()
-    local survivors = {}
+-- Переключатель режима цели
+local modeRandom = false
+local buttonMode = Instance.new("TextButton", frame)
+buttonMode.Size = UDim2.new(1, -20, 0, 40)
+buttonMode.Position = UDim2.new(0, 10, 0, 300) -- место старой кнопки
+buttonMode.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+buttonMode.BorderSizePixel = 0
+buttonMode.TextColor3 = Color3.fromRGB(255, 255, 255)
+buttonMode.Text = "Цель: Ближайшая"
+buttonMode.Font = Enum.Font.SourceSans
+buttonMode.TextSize = 20
+
+buttonMode.MouseButton1Click:Connect(function()
+    modeRandom = not modeRandom
+    buttonMode.Text = modeRandom and "Цель: Случайная" or "Цель: Ближайшая"
+end)
+
+-- функция выбора цели
+local function chooseTarget(hrp)
+    local candidates = {}
     for _, m in ipairs(workspace.Players.Survivors:GetChildren()) do
         local h = m:FindFirstChild("Humanoid")
         local t = m:FindFirstChild("HumanoidRootPart")
         if h and h.Health > 0 and t and m ~= lp.Character then
-            table.insert(survivors, t)
+            table.insert(candidates, t)
         end
     end
-    if #survivors == 0 then return nil end
-    return survivors[math.random(1, #survivors)]
+    if #candidates == 0 then return nil end
+
+    if modeRandom then
+        return candidates[math.random(1, #candidates)]
+    else
+        -- nearest
+        local nearest, dist = nil, math.huge
+        for _, t in ipairs(candidates) do
+            local d = (hrp.Position - t.Position).Magnitude
+            if d < dist then
+                dist = d
+                nearest = t
+            end
+        end
+        return nearest
+    end
 end
 
+-- умный бот
 task.spawn(function()
-	while true do
-		task.wait(1)
-		if not botEnabled then continue end
+    local lastPos = nil
+    while true do
+        task.wait(1)
+        if not botEnabled then continue end
 
-		local char = lp.Character
-		local hrp = char and char:FindFirstChild("HumanoidRootPart")
-		local hum = char and char:FindFirstChild("Humanoid")
-		if not hrp or not hum or hum.Health <= 0 then continue end
+        local char = lp.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChild("Humanoid")
+        if not hrp or not hum or hum.Health <= 0 then continue end
 
-		-- выбираем случайную цель
-		local target = getRandomSurvivor()
-		if not target then continue end
+        -- проверка на убийцу поблизости
+        local danger = false
+        for _, killer in ipairs(workspace.Players.Killers:GetChildren()) do
+            local khrp = killer:FindFirstChild("HumanoidRootPart")
+            if khrp and (khrp.Position - hrp.Position).Magnitude < 25 then
+                danger = true
+                -- умный эскейп: телепорт вверх и чуть в сторону
+                hrp.CFrame = hrp.CFrame + Vector3.new(
+                    math.random(-50,50),
+                    250,
+                    math.random(-50,50)
+                )
+                break
+            end
+        end
+        if danger then continue end
 
-		local dist = (hrp.Position - target.Position).Magnitude
+        -- выбираем цель
+        local target = chooseTarget(hrp)
+        if not target then continue end
 
-		-- проверка на убийцу поблизости
-		for _, killer in ipairs(workspace.Players.Killers:GetChildren()) do
-			local khrp = killer:FindFirstChild("HumanoidRootPart")
-			if khrp and (khrp.Position - hrp.Position).Magnitude < 15 then
-				task.spawn(function()
-					hrp.Anchored = false
-					task.wait(0.1)
-					hrp.Anchored = true
-					hrp.Position += Vector3.new(0, 250, 0)
-					task.wait(0.2)
-					hrp.Anchored = false
-				end)
-				break
-			end
-		end
+        local dist = (hrp.Position - target.Position).Magnitude
 
-		-- если далеко — включаем спидхак и жмём шифт
-		if dist > 100 then
-			speedEnabled = true
-			speed = 35
-			vim:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
-		else
-			speedEnabled = false
-			vim:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
-		end
+        -- если далеко — включаем спидхак и шифт
+        if dist > 100 then
+            speedEnabled = true
+            speed = 35
+            pcall(function() game:GetService("VirtualInputManager"):SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game) end)
+        else
+            speedEnabled = false
+            pcall(function() game:GetService("VirtualInputManager"):SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game) end)
+        end
 
-		-- двигаемся через Pathfinding
-		local path = pathfinding:CreatePath()
-		path:ComputeAsync(hrp.Position, target.Position)
+        -- Pathfinding
+        local path = pathfinding:CreatePath()
+        path:ComputeAsync(hrp.Position, target.Position)
 
-		if path.Status == Enum.PathStatus.Success then
-			for _, waypoint in ipairs(path:GetWaypoints()) do
-				if not botEnabled then break end
-				hum:MoveTo(waypoint.Position)
-				hum.MoveToFinished:Wait(2)
+        if path.Status == Enum.PathStatus.Success then
+            for _, waypoint in ipairs(path:GetWaypoints()) do
+                if not botEnabled then break end
+                hum:MoveTo(waypoint.Position)
+                local reached = hum.MoveToFinished:Wait(2)
 
-				-- проверка расстояния до цели
-				if (hrp.Position - target.Position).Magnitude < 6 then
-					break
-				end
-			end
-		end
-	end
+                -- анти-застревание: если не дошёл до точки
+                if not reached then
+                    hum.Jump = true
+                    hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 5
+                end
+
+                if (hrp.Position - target.Position).Magnitude < 6 then
+                    break
+                end
+            end
+        end
+
+        -- проверка застревания: сравнить с прошлой позицией
+        if lastPos and (hrp.Position - lastPos).Magnitude < 3 then
+            hum.Jump = true
+            hrp.CFrame = hrp.CFrame + hrp.CFrame.LookVector * 10
+        end
+        lastPos = hrp.Position
+    end
 end)
 
 
